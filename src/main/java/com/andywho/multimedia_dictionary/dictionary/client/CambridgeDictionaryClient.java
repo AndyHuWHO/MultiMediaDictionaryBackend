@@ -98,6 +98,65 @@ public Mono<List<DictionaryInfo>> fetchWordEntry(String word) {
 
 
 
+//    private List<DictionaryInfo> parseDictionaryInfoFromHtml(String entryContent) {
+//        Document doc = Jsoup.parse(entryContent);
+//        List<DictionaryInfo> dictionaryInfoList = new ArrayList<>();
+//
+//        Elements posBlocks = doc.select("span.pos-block");
+//
+//        for (Element posBlock : posBlocks) {
+//            DictionaryInfo dictionaryInfo = new DictionaryInfo();
+//
+//            // in here do we need to go to more specific elements inside the posblock? for example to to the header then info..
+//            String pos = posBlock.select("span.pos").text();  // Extract part of speech
+//            dictionaryInfo.setPos(pos);
+//
+//            // same question as above
+//            String pronunciation = posBlock.select("span.pron").text();  // Extract pronunciation
+//            dictionaryInfo.setPronunciation(pronunciation);
+//
+//            // let's ignore this part for now
+//            Elements audioElements = posBlock.select("audio source[type=audio/mpeg]");
+//            if (!audioElements.isEmpty()) {
+//                String audioUrl = audioElements.first().attr("src");  // Get the first audio URL
+//                // You can store this audio URL in the DictionaryInfo if required (e.g., setAudioUrl method)
+//            }
+//
+//
+//            Elements senseEntries = posBlock.select("section.senseEntry");
+//
+//            StringBuilder definitions = new StringBuilder();
+//            List<String> sentences = new ArrayList<>();
+//
+//            for (Element senseEntry : senseEntries) {
+//                // each of these element could be a def block? then i think def is 2 levels inside? do we need to go in step by step?
+//                String definition = senseEntry.select("span.def").text();
+//                if (!definition.isEmpty()) {
+//                    definitions.append(definition).append(" ");
+//                }
+//
+//                // same in here?
+//                Elements exampleElements = senseEntry.select("span.examp span.eg");
+//                for (Element example : exampleElements) {
+//                    String exampleSentence = example.text();
+//                    if (!exampleSentence.isEmpty()) {
+//                        sentences.add(exampleSentence);  // Add example sentence to the list
+//                    }
+//                }
+//            }
+//
+//            // Set the concatenated definitions and sentences into the DictionaryInfo object
+//            dictionaryInfo.setDefinition(definitions.toString().trim());  // Set the combined definitions
+//            dictionaryInfo.setSentences(sentences);  // Set the list of example sentences
+//
+//            // Add this DictionaryInfo object to the list
+//            dictionaryInfoList.add(dictionaryInfo);
+//        }
+//
+//        // Return the list of DictionaryInfo objects
+//        return dictionaryInfoList;
+//    }
+
     private List<DictionaryInfo> parseDictionaryInfoFromHtml(String entryContent) {
         // Parse the HTML content using Jsoup
         Document doc = Jsoup.parse(entryContent);
@@ -105,40 +164,81 @@ public Mono<List<DictionaryInfo>> fetchWordEntry(String word) {
         // Initialize a list to hold multiple DictionaryInfo objects
         List<DictionaryInfo> dictionaryInfoList = new ArrayList<>();
 
-        // Extract different senses/meanings from the HTML
-        Elements senseEntries = doc.select("section.senseEntry"); // adjust selector as needed
-        for (Element senseEntry : senseEntries) {
+        // Extract different pos-blocks (each represents a part of speech) from the HTML
+        Elements posBlocks = doc.select("span.pos-block"); // adjust selector as needed
+
+        for (Element posBlock : posBlocks) {
             DictionaryInfo dictionaryInfo = new DictionaryInfo();
 
-            // Extract part of speech (pos)
-            // Example of extracting pos: "noun" etc.
-            String pos = senseEntry.select("span.pos").text();  // Adjust selector based on your HTML structure
+            // Extract part of speech (pos) from the pos-block header
+            String pos = posBlock.select("span.pos").text();  // Extract part of speech
             dictionaryInfo.setPos(pos);
 
-            // Extract pronunciation (can be extended to fetch audio URLs)
-            // Ensure pronunciation is extracted correctly, check if it uses another HTML element.
-            String pronunciation = senseEntry.select("span.pron").text();
+            // Extract pronunciation (IPA) from the pos-block header
+            String pronunciation = posBlock.select("span.pron").text();  // Extract pronunciation
             dictionaryInfo.setPronunciation(pronunciation);
 
-            // Extract definition
-            String definition = senseEntry.select("span.def").text();
-            dictionaryInfo.setDefinition(definition);
-
-            // Extract example sentences
-            List<String> sentences = new ArrayList<>();
-            Elements examples = senseEntry.select("span.examp span.eg");
-            for (Element example : examples) {
-                sentences.add(example.text());
+            // Extract audio pronunciation URLs (if available)
+            Elements audioElements = posBlock.select("audio source[type=audio/mpeg]");
+            if (!audioElements.isEmpty()) {
+                String audioUrl = audioElements.first().attr("src");  // Get the first audio URL
+                // You can store this audio URL in the DictionaryInfo if required (e.g., setAudioUrl method)
             }
-            dictionaryInfo.setSentences(sentences);
 
-            // Add this DictionaryInfo to the list
+            // Extract different sense entries (each contains a definition, translation, and examples)
+            Elements senseEntries = posBlock.select("section.senseEntry");
+
+            List<String> definitions = new ArrayList<>();  // To hold multiple definitions with translations
+            List<String> sentences = new ArrayList<>();    // To hold sentences with translations
+
+            for (Element senseEntry : senseEntries) {
+                // Loop through each definition span in this senseEntry
+                Elements defElements = senseEntry.select("span.def");
+                for (Element defElement : defElements) {
+                    String definition = defElement.text();
+
+                    // Check if a translation is present and append it to the definition
+                    String translation = defElement.siblingElements().select("span.trans").text();
+                    if (!translation.isEmpty()) {
+                        definition = definition + " (" + translation + ")";  // Append the translation in parentheses
+                    }
+
+                    if (!definition.isEmpty()) {
+                        definitions.add(definition);  // Add the definition (with translation) to the list
+                    }
+                }
+
+                // Extract example sentences
+                Elements exampleElements = senseEntry.select("span.examp span.eg");
+                for (Element example : exampleElements) {
+                    String exampleSentence = example.text();
+
+                    // Check if a translation is present and append it to the example sentence
+                    String sentenceTranslation = example.siblingElements().select("span.trans").text();
+                    if (!sentenceTranslation.isEmpty()) {
+                        exampleSentence = exampleSentence + " (" + sentenceTranslation + ")";  // Append translation
+                    }
+
+                    if (!exampleSentence.isEmpty()) {
+                        sentences.add(exampleSentence);  // Add the example sentence (with translation)
+                    }
+                }
+            }
+
+            // Set the list of definitions and sentences into the DictionaryInfo object
+            dictionaryInfo.setDefinition(String.join("; ", definitions));  // Join definitions with "; " separator
+            dictionaryInfo.setSentences(sentences);  // Set the list of example sentences
+
+            // Add this DictionaryInfo object to the list
             dictionaryInfoList.add(dictionaryInfo);
         }
 
         // Return the list of DictionaryInfo objects
         return dictionaryInfoList;
     }
+
+
+
 
 
 
