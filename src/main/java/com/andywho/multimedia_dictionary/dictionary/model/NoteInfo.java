@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Data
 @NoArgsConstructor
@@ -14,7 +16,7 @@ public class NoteInfo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String uploader;
-    private String date_created;
+    private LocalDateTime date_created;
     private String content;
 
     @ManyToOne

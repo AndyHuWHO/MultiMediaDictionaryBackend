@@ -14,6 +14,6 @@ public interface DictionaryService {
      * @return the {@link WordEntry} corresponding to the provided word,
      *         or {@code null} if the word is not found
      */
-    WordEntry lookupWord(String word);
+    Mono<WordEntry> lookupWord(String word);
 
 }

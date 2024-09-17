@@ -1,9 +1,6 @@
 package com.andywho.multimedia_dictionary.dictionary.model;
 
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.MappedSuperclass;
-import jakarta.persistence.PrePersist;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,6 +14,9 @@ import java.util.List;
 @MappedSuperclass
 public abstract class MultiMediaInfo {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     private String link;
     private String uploader;
     //private String date_created;

@@ -10,7 +10,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class WordEntryDto {
+public class WordEntryDto extends ResponseDto {
     private String word;
     private String language;
     private List<DictionaryInfoDto> dictionaryInfoList;

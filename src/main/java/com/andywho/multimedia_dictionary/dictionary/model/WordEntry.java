@@ -14,8 +14,10 @@ import java.util.List;
 @NoArgsConstructor
 public class WordEntry {
     @Id
-    private String word;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
+    private String word;
     private String language;
 
     @OneToMany(mappedBy = "wordEntry", cascade = CascadeType.ALL, orphanRemoval = true)

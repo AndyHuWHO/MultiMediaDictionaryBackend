@@ -18,13 +18,17 @@ public class DictionaryServiceImpl implements DictionaryService {
     public DictionaryServiceImpl(CambridgeDictionaryClient cambridgeDictionaryClient) {
         this.cambridgeDictionaryClient = cambridgeDictionaryClient;
     }
+
     @Override
-    public WordEntry lookupWord(String word) {
-        List<DictionaryInfo> dictionaryInfoList =  cambridgeDictionaryClient.fetchWordEntry(word);
-        WordEntry wordEntry = new WordEntry(word, dictionaryInfoList);
-        for (DictionaryInfo dictionaryInfo : dictionaryInfoList) {
-            dictionaryInfo.setWordEntry(wordEntry);
-        }
-        return wordEntry;
+    public Mono<WordEntry> lookupWord(String word) {
+        return cambridgeDictionaryClient.fetchWordEntry(word)
+                .flatMap(dictionaryInfoList -> {
+                    if (dictionaryInfoList.isEmpty()) {
+                        return Mono.empty();
+                    }
+                    WordEntry wordEntry = new WordEntry(word, dictionaryInfoList);
+                    dictionaryInfoList.forEach(dictionaryInfo -> dictionaryInfo.setWordEntry(wordEntry));
+                    return Mono.just(wordEntry);
+                });
     }
 }
