@@ -20,8 +20,10 @@ public class DictionaryInfo {
     private String sourceDict = "Cambridge";
     private String pos = "";
     private String pronunciation = "";
-    private String definition = "";
-    private String translation = "";
+    @ElementCollection
+    private List<String> definition = new ArrayList<>();
+    @ElementCollection
+    private List<String> translation = new ArrayList<>();
     @ElementCollection
     private List<String> expressions = new ArrayList<String>();
     @ElementCollection
