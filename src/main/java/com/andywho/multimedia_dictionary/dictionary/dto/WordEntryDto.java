@@ -15,8 +15,4 @@ public class WordEntryDto extends ResponseDto {
     private String language;
     private List<DictionaryInfoDto> dictionaryInfoList;
 
-//    private List<VideoInfo> videoInfoList = new ArrayList<>();
-//    private List<ImageInfo> imageInfoList = new ArrayList<>();
-//    private List<AudioInfo> audioInfoList = new ArrayList<>();
-//    private List<NoteInfo> noteInfo = new ArrayList<>();
 }

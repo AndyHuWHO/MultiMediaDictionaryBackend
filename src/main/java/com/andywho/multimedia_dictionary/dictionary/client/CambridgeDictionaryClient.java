@@ -1,8 +1,10 @@
 package com.andywho.multimedia_dictionary.dictionary.client;
 
 import com.andywho.multimedia_dictionary.dictionary.model.DictionaryInfo;
+import com.andywho.multimedia_dictionary.dictionary.model.Pronunciation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.web.client.RestTemplate;
@@ -23,7 +25,9 @@ import java.util.List;
 
 @Component
 public class CambridgeDictionaryClient {
-    private final RestTemplate restTemplate;
+//    private final RestTemplate restTemplate;
+    private WebClient webClient;
+    private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
 
     @Value("${cambridge.api.url}")
@@ -32,42 +36,51 @@ public class CambridgeDictionaryClient {
     @Value("${cambridge.api.key}")
     private String accessKey;
 
-    public CambridgeDictionaryClient(RestTemplate restTemplate, ObjectMapper objectMapper) {
-        this.restTemplate = restTemplate;
+    public CambridgeDictionaryClient(WebClient.Builder webClientBuilder, ObjectMapper objectMapper) {
+//        this.restTemplate = restTemplate;
+        this.webClientBuilder = webClientBuilder;
         this.objectMapper = objectMapper;
     }
 
-public Mono<List<DictionaryInfo>> fetchWordEntry(String word) {
-    return WebClient.create(apiUrl)
-            .get()
-            .uri(uriBuilder -> uriBuilder.path("/{word}/")
-                    .queryParam("format", "json")
-                    .build(word))
-            .header("accessKey", accessKey)
-            .retrieve()
-            .bodyToMono(String.class)
-            .flatMap(responseBody -> {
-                try {
-                    // Parse the JSON response to get the HTML content
-                    JsonNode rootNode = objectMapper.readTree(responseBody);
-                    String entryContent = rootNode.path("entryContent").asText();
 
-                    // Call the helper method to parse and create a list of DictionaryInfo objects
-                    List<DictionaryInfo> dictionaryInfoList = parseDictionaryInfoFromHtml(entryContent);
+    @PostConstruct
+    public void init() {
+        System.out.println("API URL after injection: " + apiUrl);
+        this.webClient = webClientBuilder.baseUrl(apiUrl).build();
+    }
 
-                    // Return the list wrapped in a Mono
-                    return Mono.just(dictionaryInfoList);
+    public Mono<List<DictionaryInfo>> fetchWordEntry(String word) {
+        return webClient
+                .get()
+                .uri(uriBuilder -> uriBuilder.path("/{word}/")
+                        .queryParam("format", "json")
+                        .build(word))
+                .header("accessKey", accessKey)
+                .retrieve()
+                .bodyToMono(String.class)
+                .flatMap(responseBody -> {
+                    try {
+                        // Parse the JSON response to get the HTML content
+                        JsonNode rootNode = objectMapper.readTree(responseBody);
+                        String entryContent = rootNode.path("entryContent").asText();
 
-                } catch (Exception e) {
-                    // Handle and log the error
+                        // Call the helper method to parse and create a list of DictionaryInfo objects
+                        List<DictionaryInfo> dictionaryInfoList = parseDictionaryInfoFromHtml(entryContent);
+
+                        // Return the list wrapped in a Mono
+                        return Mono.just(dictionaryInfoList);
+
+                    } catch (Exception e) {
+                        // Handle and log the error
+                        return Mono.error(new RuntimeException(e.getMessage()));
+                    }
+                })
+                .onErrorResume(e -> {
+                    System.out.println("Exception in dictionary client: " + e);
                     return Mono.error(new RuntimeException(e.getMessage()));
-                }
-            })
-            .onErrorResume(e -> {
-                System.out.println("Exception in dictionary client: " + e);
-                return Mono.error(new RuntimeException(e.getMessage()));
-            });
-}
+                });
+    }
+
 
     private List<DictionaryInfo> parseDictionaryInfoFromHtml(String entryContent) {
         // Parse the HTML content using Jsoup
@@ -76,26 +89,77 @@ public Mono<List<DictionaryInfo>> fetchWordEntry(String word) {
         // Initialize a list to hold multiple DictionaryInfo objects
         List<DictionaryInfo> dictionaryInfoList = new ArrayList<>();
 
-        // Extract different pos-blocks (each represents a part of speech) from the HTML
+        // Extract different pos-blocks (each represents one potential dictionary info)
         Elements posBlocks = doc.select("span.pos-block"); // adjust selector as needed
 
         for (Element posBlock : posBlocks) {
             DictionaryInfo dictionaryInfo = new DictionaryInfo();
 
             // Extract part of speech (pos) from the pos-block header
-            String pos = posBlock.select("span.pos").text();  // Extract part of speech
+            String pos = posBlock.select("span.pos").text();
             dictionaryInfo.setPos(pos);
 
-            // Extract pronunciation (IPA) from the pos-block header
-            String pronunciation = posBlock.select("span.pron").text();  // Extract pronunciation
-            dictionaryInfo.setPronunciation(pronunciation);
+            // Initialize the list of pronunciations
+            List<Pronunciation> pronunciations = new ArrayList<>();
+            Element pronunciationContainer = posBlock.selectFirst("header span.info");
 
-            // Extract audio pronunciation URLs (if available)
-            Elements audioElements = posBlock.select("audio source[type=audio/mpeg]");
-            if (!audioElements.isEmpty()) {
-                String audioUrl = audioElements.first().attr("src");  // Get the first audio URL
-                // You can store this audio URL in the DictionaryInfo if required
+            // Check if the container exists
+            if (pronunciationContainer != null) {
+                // Loop through each child 'span.info' block that holds individual pronunciation data
+                Elements childPronunciationBlocks = pronunciationContainer.children();
+                for (Element pronunciationElement : childPronunciationBlocks) {
+                    Pronunciation pronunciation = new Pronunciation();
+                    // Determine the dialect based on the 'alt' attribute of the image
+                    Element imageElement = pronunciationElement.selectFirst("a.playback img");
+                    String dialect = "";
+                    if (imageElement != null) {
+                        String altText = imageElement.attr("alt");
+                        if (altText.contains("British")) {
+                            dialect = "British";
+                        } else if (altText.contains("American")) {
+                            dialect = "American";
+                        }
+                    }
+                    pronunciation.setDialect(dialect);
+
+//                    // Extract the IPA pronunciation
+//                    Element ipaElement = pronunciationElement.selectFirst("span.ipa");
+//                    if (ipaElement != null) {
+//                        String ipa = ipaElement.text();
+//                        ipa = ipa.replaceAll("<sup>(.*?)</sup>", "($1)");  // Replace any <sup> with parentheses
+//                        pronunciation.setIpa(ipa);
+//                    }
+
+                    // Extract the IPA pronunciation as HTML (to keep the <sup> elements)
+                    Element ipaElement = pronunciationElement.selectFirst("span.ipa");
+                    if (ipaElement != null) {
+                        String ipaHtml = ipaElement.html();
+                        // Replace <sup> and </sup> tags with parentheses
+                        ipaHtml = ipaHtml.replaceAll("<sup>", "(")
+                                .replaceAll("</sup>", ")");
+
+                        // Set the cleaned IPA value
+                        pronunciation.setIpa(ipaHtml);
+                    }
+
+
+                    // Extract the audio link (if available)
+                    Element audioElement = pronunciationElement.selectFirst("audio source[type=audio/mpeg]");
+                    if (audioElement != null) {
+                        String audioLink = audioElement.attr("src");
+                        pronunciation.setAudioLink(audioLink);
+                    }
+
+                    // Only add the pronunciation if it has a valid dialect and IPA
+                    if (!dialect.isEmpty() && ipaElement != null) {
+                        pronunciations.add(pronunciation);
+                    }
+                }
             }
+
+            // Set the list of Pronunciation objects in DictionaryInfo
+            dictionaryInfo.setPronunciations(pronunciations);
+
 
             // Extract different sense entries (each contains a definition, translation, and examples)
             Elements senseEntries = posBlock.select("section.senseEntry");
@@ -112,11 +176,11 @@ public Mono<List<DictionaryInfo>> fetchWordEntry(String word) {
                     // Check if a translation is present and append it to the definition
                     String translation = defElement.siblingElements().select("span.trans").text();
                     if (!translation.isEmpty()) {
-                        definition = definition + " (" + translation + ")";  // Append translation in parentheses
+                        definition = definition + " (" + translation + ")";
                     }
 
                     if (!definition.isEmpty()) {
-                        definitions.add(definition);  // Add the definition (with translation) to the list
+                        definitions.add(definition);
                     }
                 }
 
@@ -148,8 +212,6 @@ public Mono<List<DictionaryInfo>> fetchWordEntry(String word) {
         // Return the list of DictionaryInfo objects
         return dictionaryInfoList;
     }
-
-
 
 }
 

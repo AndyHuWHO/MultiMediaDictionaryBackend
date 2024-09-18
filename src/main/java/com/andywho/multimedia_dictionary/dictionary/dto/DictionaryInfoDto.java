@@ -11,7 +11,7 @@ import java.util.List;
 public class DictionaryInfoDto {
     private String sourceDict;
     private String pos ;
-    private String pronunciation ;
+    private List<PronunciationDto> pronunciation ;
     private List<String> definition;
     private List<String> translation;
     private List<String> expressions;

@@ -17,11 +17,21 @@ public class EntityDtoMapper {
         );
     }
 
+    public PronunciationDto toPronunciationDto(Pronunciation pronunciation) {
+        return new PronunciationDto(
+                pronunciation.getDialect(),
+                pronunciation.getIpa(),
+                pronunciation.getAudioLink()
+        );
+    }
+
     public DictionaryInfoDto toDictionaryInfoDto(DictionaryInfo dictionaryInfo) {
         return new DictionaryInfoDto(
                 dictionaryInfo.getSourceDict(),
                 dictionaryInfo.getPos(),
-                dictionaryInfo.getPronunciation(),
+                dictionaryInfo.getPronunciations().stream()
+                        .map(this::toPronunciationDto)
+                        .collect(Collectors.toList()),
                 dictionaryInfo.getDefinition(),
                 dictionaryInfo.getTranslation(),
                 dictionaryInfo.getExpressions(),

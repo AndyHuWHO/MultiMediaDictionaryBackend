@@ -19,7 +19,8 @@ public class DictionaryInfo {
     private Long id;
     private String sourceDict = "Cambridge";
     private String pos = "";
-    private String pronunciation = "";
+    @OneToMany(mappedBy = "dictionaryInfo", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Pronunciation> pronunciations = new ArrayList<>();
     @ElementCollection
     private List<String> definition = new ArrayList<>();
     @ElementCollection
